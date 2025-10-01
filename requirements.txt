@@ -31,9 +31,9 @@ setuptools==70.2.0
 soundfile==0.13.1
 speechbrain==1.0.3
 sympy==1.13.3
-torch==2.8.0+cpu
-torchaudio==2.8.0+cpu
-torchvision==0.23.0+cpu
+torch
+torchaudio
+torchvision
 tqdm==4.67.1
 typing_extensions==4.12.2
 urllib3==2.5.0
