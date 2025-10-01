@@ -30,6 +30,7 @@ sentencepiece==0.2.1
 setuptools==70.2.0
 soundfile==0.13.1
 speechbrain==1.0.3
+transformers==4.44.2 
 sympy==1.13.3
 torch
 torchaudio
