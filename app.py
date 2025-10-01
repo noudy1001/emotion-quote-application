@@ -1,3 +1,4 @@
+
 import os
 import tempfile
 import torch
@@ -6,6 +7,8 @@ from torchaudio.transforms import Resample
 from flask import Flask, request, jsonify
 import requests
 from speechbrain.pretrained import EncoderClassifier
+
+os.system("pip install transformers==4.46.2")
 
 app = Flask(__name__)
 
