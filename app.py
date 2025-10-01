@@ -1,24 +1,22 @@
-
 import os
+os.system("pip install transformers==4.46.2")
+
 import tempfile
 import torch
 import torchaudio
 from torchaudio.transforms import Resample
 from flask import Flask, request, jsonify
 import requests
-from speechbrain.pretrained import EncoderClassifier
-
-os.system("pip install transformers==4.46.2")
+from speechbrain.inference import EncoderClassifier  # updated path
 
 app = Flask(__name__)
 
 print("Loading model...")
 classifier = EncoderClassifier.from_hparams(
     source="speechbrain/emotion-recognition-wav2vec2-IEMOCAP",
-    savedir=None
+    savedir="pretrained_models/emotion"
 )
 print("Model loaded.")
-
 
 # Map emotions → tags for quotes
 MOOD_TO_TAGS = {
@@ -86,5 +84,4 @@ def infer_audio():
         except: pass
 
 if __name__ == "__main__":
-    app.run()
-
+    app.run(host="0.0.0.0", port=5000)
