@@ -17,7 +17,7 @@ app = Flask(__name__)
 print("Loading SpeechBrain model...")
 classifier = EncoderClassifier.from_hparams(
     source="speechbrain/emotion-recognition-wav2vec2-IEMOCAP",
-    savedir="pretrained_models/emotion"
+    savedir=None
 )
 print("Model loaded.")
 
