@@ -8,7 +8,7 @@ itsdangerous==2.2.0
 blinker==1.9.0
 
 # Transformers first
-transformers
+transformers>=4.0.0
 huggingface-hub==0.35.3
 sentencepiece==0.2.1
 HyperPyYAML==1.2.2
