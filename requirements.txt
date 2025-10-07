@@ -1,5 +1,5 @@
-gunicorn==23.0.0
 anyio==4.11.0
+gunicorn==23.0.0
 asgiref==3.10.0
 beautifulsoup4==4.13.5
 blinker==1.9.0
