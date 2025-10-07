@@ -8,12 +8,13 @@ import pandas as pd
 import random
 import csv
 import requests
+import base64
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
 # -----------------------------
-# Gradio API URL (update if needed)
+# Gradio API Endpoint (Update if regenerated)
 # -----------------------------
 GRADIO_API_URL = "https://5efe1650c0a5918059.gradio.live"
 
@@ -27,14 +28,11 @@ if os.path.exists(quotes_path):
         with open(quotes_path, "r", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             for row in reader:
-                try:
-                    quote = row.get("quote", "").strip()
-                    author = row.get("author", "").strip()
-                    category = row.get("category", "").strip()
-                    if quote and author and category:
-                        quotes.append({"quote": quote, "author": author, "category": category})
-                except Exception:
-                    continue
+                quote = row.get("quote", "").strip()
+                author = row.get("author", "").strip()
+                category = row.get("category", "").strip()
+                if quote and author and category:
+                    quotes.append({"quote": quote, "author": author, "category": category})
     except Exception as e:
         print(f"Error reading quotes.csv: {e}")
 
@@ -65,7 +63,7 @@ def ensure_16k_mono(path):
     return tmp.name
 
 # -----------------------------
-# Get quote based on emotion
+# Pick quote based on emotion
 # -----------------------------
 def get_quote_for_emotion(emotion_label):
     keywords = MOOD_TO_TAGS.get(emotion_label.lower(), ["life", "wisdom"])
@@ -81,14 +79,14 @@ def get_quote_for_emotion(emotion_label):
     return {"text": row[0], "author": row[1], "tags": keywords}
 
 # -----------------------------
-# Root Route (Health Check)
+# Health Check
 # -----------------------------
 @app.route("/", methods=["GET"])
 def home():
     return jsonify({"message": "🎧 Emotion Quote API is running successfully!"})
 
 # -----------------------------
-# Main Emotion Inference Endpoint
+# Main Inference Endpoint
 # -----------------------------
 @app.route("/infer/audio", methods=["POST"])
 def infer_audio():
@@ -103,27 +101,41 @@ def infer_audio():
         tmp_in.close()
 
         print(f"[INFO] Received file: {filename}")
-        
-        # Try normalizing, fallback to raw if fails
+
+        # Normalize audio
         try:
             tmp_norm = ensure_16k_mono(tmp_in.name)
         except Exception as e:
-            print(f"[ERROR] Audio normalization failed: {e}")
-            tmp_norm = tmp_in.name  # fallback
+            print(f"[ERROR] Normalization failed: {e}")
+            tmp_norm = tmp_in.name
 
-        # ✅ Call Gradio
+        # Read audio and convert to base64
         with open(tmp_norm, "rb") as audio_file:
-            files = {"audio": (filename, audio_file, "audio/wav")}
-            response = requests.post(f"{GRADIO_API_URL}/audio", files=files)
+            audio_bytes = audio_file.read()
+            b64_audio = base64.b64encode(audio_bytes).decode("utf-8")
 
-        print(f"[INFO] Gradio API status: {response.status_code}")
+        # Gradio expects a JSON payload with 'data': [base64_encoded_audio]
+        payload = {
+            "data": [f"data:audio/wav;base64,{b64_audio}"]
+        }
+
+        # Send to Gradio predict API
+        gradio_url = f"{GRADIO_API_URL}/api/predict"
+        response = requests.post(gradio_url, json=payload)
+
         if response.status_code != 200:
-            print(f"[ERROR] Gradio API response: {response.text}")
+            print(f"[ERROR] Gradio response: {response.text}")
             return jsonify({"error": "Gradio API failure"}), 500
 
-        data = response.json()
-        emotion = data.get("emotion", "").lower()
-        confidence = data.get("confidence", 0)
+        result = response.json()
+
+        # Parse response (change if format is different)
+        if isinstance(result, dict) and "data" in result:
+            prediction = result["data"][0]
+            emotion = prediction.get("emotion", "").lower()
+            confidence = prediction.get("confidence", 0)
+        else:
+            return jsonify({"error": "Invalid response format from Gradio"}), 500
 
         quote_data = get_quote_for_emotion(emotion)
 
@@ -134,7 +146,7 @@ def infer_audio():
         })
 
     except Exception as e:
-        print(f"[FATAL ERROR] {e}")
+        print(f"[ERROR] {e}")
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
     finally:
@@ -144,7 +156,7 @@ def infer_audio():
         except: pass
 
 # -----------------------------
-# Run Server (Local)
+# Start Server
 # -----------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
