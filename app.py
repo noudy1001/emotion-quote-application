@@ -7,19 +7,15 @@ from flask import Flask, request, jsonify
 import pandas as pd
 import random
 import csv
-from speechbrain.inference import EncoderClassifier  # updated path
+import requests  # ✅ New
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
 # -----------------------------
-# Load model
+# Gradio API URL
 # -----------------------------
-print("Loading SpeechBrain model...")
-classifier = EncoderClassifier.from_hparams(
-    source="speechbrain/emotion-recognition-wav2vec2-IEMOCAP",
-    savedir=None
-)
-print("Model loaded.")
+GRADIO_API_URL = "https://5efe1650c0a5918059.gradio.live/infer"  # Adjust if needed
 
 # -----------------------------
 # Load CSV quotes
@@ -45,22 +41,14 @@ df = pd.DataFrame(quotes)
 # Expanded keyword mapping
 # -----------------------------
 MOOD_TO_TAGS = {
-    "angry": [
-        "anger", "frustration", "mistakes", "out-of-control", "worst", "hate", "do-wrong", "evil", "despair", "pain", "heartache"
-    ],
-    "sad": [
-        "sad", "loss", "death", "despair", "hopeless", "heartbreak", "suffering", "waiting", "regret", "disappointment", "grieving"
-    ],
-    "neutral": [
-        "wisdom", "balance", "thought", "philosophy", "truth", "mind", "reality", "knowledge", "inspirational", "learning"
-    ],
-    "happy": [
-        "happiness", "joy", "love", "smile", "positivity", "best", "life", "fun", "friendship", "peace", "hope", "adventure", "optimism", "trust", "inspirational"
-    ]
+    "angry": ["anger", "frustration", "mistakes", "hate", "evil", "despair"],
+    "sad": ["sad", "loss", "death", "regret", "grieving"],
+    "neutral": ["wisdom", "truth", "knowledge"],
+    "happy": ["happiness", "joy", "love", "smile", "hope", "fun"]
 }
 
 # -----------------------------
-# Helper: normalize audio
+# Normalize audio
 # -----------------------------
 def ensure_16k_mono(path):
     wav, sr = torchaudio.load(path)
@@ -74,13 +62,13 @@ def ensure_16k_mono(path):
     return tmp.name
 
 # -----------------------------
-# Helper: pick quote
+# Select quote by emotion
 # -----------------------------
 def get_quote_for_emotion(emotion_label):
     keywords = MOOD_TO_TAGS.get(emotion_label.lower(), ["life", "wisdom"])
     if df.empty:
         return {"text": "Could not load quotes.", "author": "", "tags": []}
-
+    
     filtered = df[df["category"].apply(lambda x: any(k.lower() in str(x).lower() for k in keywords))]
     if filtered.empty:
         row = random.choice(df[["quote", "author"]].values)
@@ -90,7 +78,7 @@ def get_quote_for_emotion(emotion_label):
     return {"text": row[0], "author": row[1], "tags": keywords}
 
 # -----------------------------
-# API endpoint
+# API Endpoint
 # -----------------------------
 @app.route("/infer/audio", methods=["POST"])
 def infer_audio():
@@ -98,6 +86,7 @@ def infer_audio():
         return jsonify({"error": "No audio file"}), 400
 
     f = request.files["audio"]
+    filename = secure_filename(f.filename)
     tmp_in = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     f.save(tmp_in.name)
     tmp_in.close()
@@ -105,31 +94,35 @@ def infer_audio():
     try:
         tmp_norm = ensure_16k_mono(tmp_in.name)
 
-        # Inference
-        out_prob, score, index, text_lab = classifier.classify_file(tmp_norm)
-        if not isinstance(out_prob, torch.Tensor):
-            out_prob = torch.tensor(out_prob)
-        probs = torch.softmax(out_prob.squeeze(0), dim=-1)
-        confidence = float(probs.max().item())
+        # ✅ Send to Gradio API
+        with open(tmp_norm, "rb") as audio_file:
+            files = {"audio": (filename, audio_file, "audio/wav")}
+            response = requests.post(f"{GRADIO_API_URL}/audio", files=files)
 
-        label = text_lab[0] if isinstance(text_lab, (list, tuple)) else text_lab
-        label = str(label).lower()
+        if response.status_code != 200:
+            return jsonify({"error": "Failed to get response from Gradio API"}), 500
 
-        quote_data = get_quote_for_emotion(label)
+        data = response.json()
+        emotion = data.get("emotion", "").lower()
+        confidence = data.get("confidence", 0)
+
+        quote_data = get_quote_for_emotion(emotion)
 
         return jsonify({
-            "emotion": label,
+            "emotion": emotion,
             "confidence": confidence,
             "quote": quote_data
         })
 
     finally:
         for path in [tmp_in.name, tmp_norm]:
-            try: os.remove(path)
-            except: pass
+            try:
+                os.remove(path)
+            except:
+                pass
 
 # -----------------------------
-# Run server
+# Run Server
 # -----------------------------
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000)
