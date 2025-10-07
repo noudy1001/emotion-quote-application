@@ -122,7 +122,7 @@ def infer_audio():
             "data": [f"data:audio/wav;base64,{b64_audio}"]
         }
 
-        gradio_url = f"{GRADIO_API_URL}/api/predict"
+        gradio_url = f"{GRADIO_API_URL}/predict"
         print(f"[INFO] Sending request to Gradio: {gradio_url}")
         print(f"[DEBUG] Payload keys: {payload.keys()}")
 
