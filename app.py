@@ -15,7 +15,7 @@ app = Flask(__name__)
 # -----------------------------
 # Gradio API URL (update if needed)
 # -----------------------------
-GRADIO_API_URL = "https://5efe1650c0a5918059.gradio.live/infer"
+GRADIO_API_URL = "https://5efe1650c0a5918059.gradio.live"
 
 # -----------------------------
 # Load Quotes CSV
