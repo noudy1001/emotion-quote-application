@@ -92,25 +92,34 @@ def home():
 # -----------------------------
 @app.route("/infer/audio", methods=["POST"])
 def infer_audio():
-    if "audio" not in request.files:
-        return jsonify({"error": "No audio file"}), 400
-
-    f = request.files["audio"]
-    filename = secure_filename(f.filename)
-    tmp_in = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
-    f.save(tmp_in.name)
-    tmp_in.close()
-
     try:
-        tmp_norm = ensure_16k_mono(tmp_in.name)
+        if "audio" not in request.files:
+            return jsonify({"error": "No audio file"}), 400
 
-        # Send audio to Gradio API
+        f = request.files["audio"]
+        filename = secure_filename(f.filename)
+        tmp_in = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+        f.save(tmp_in.name)
+        tmp_in.close()
+
+        print(f"[INFO] Received file: {filename}")
+        
+        # Try normalizing, fallback to raw if fails
+        try:
+            tmp_norm = ensure_16k_mono(tmp_in.name)
+        except Exception as e:
+            print(f"[ERROR] Audio normalization failed: {e}")
+            tmp_norm = tmp_in.name  # fallback
+
+        # ✅ Call Gradio
         with open(tmp_norm, "rb") as audio_file:
             files = {"audio": (filename, audio_file, "audio/wav")}
             response = requests.post(f"{GRADIO_API_URL}/audio", files=files)
 
+        print(f"[INFO] Gradio API status: {response.status_code}")
         if response.status_code != 200:
-            return jsonify({"error": "Failed to get response from Gradio API"}), 500
+            print(f"[ERROR] Gradio API response: {response.text}")
+            return jsonify({"error": "Gradio API failure"}), 500
 
         data = response.json()
         emotion = data.get("emotion", "").lower()
@@ -124,12 +133,15 @@ def infer_audio():
             "quote": quote_data
         })
 
+    except Exception as e:
+        print(f"[FATAL ERROR] {e}")
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
     finally:
-        for path in [tmp_in.name, tmp_norm]:
-            try:
-                os.remove(path)
-            except:
-                pass
+        try: os.remove(tmp_in.name)
+        except: pass
+        try: os.remove(tmp_norm)
+        except: pass
 
 # -----------------------------
 # Run Server (Local)
