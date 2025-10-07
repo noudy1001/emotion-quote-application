@@ -7,38 +7,41 @@ from flask import Flask, request, jsonify
 import pandas as pd
 import random
 import csv
-import requests  # ✅ New
+import requests
 from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
 # -----------------------------
-# Gradio API URL
+# Gradio API URL (update if needed)
 # -----------------------------
-GRADIO_API_URL = "https://5efe1650c0a5918059.gradio.live/infer"  # Adjust if needed
+GRADIO_API_URL = "https://5efe1650c0a5918059.gradio.live/infer"
 
 # -----------------------------
-# Load CSV quotes
+# Load Quotes CSV
 # -----------------------------
 quotes_path = "quotes.csv"
 quotes = []
 if os.path.exists(quotes_path):
-    with open(quotes_path, "r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            try:
-                quote = row.get("quote", "").strip()
-                author = row.get("author", "").strip()
-                category = row.get("category", "").strip()
-                if quote and author and category:
-                    quotes.append({"quote": quote, "author": author, "category": category})
-            except Exception:
-                continue
+    try:
+        with open(quotes_path, "r", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                try:
+                    quote = row.get("quote", "").strip()
+                    author = row.get("author", "").strip()
+                    category = row.get("category", "").strip()
+                    if quote and author and category:
+                        quotes.append({"quote": quote, "author": author, "category": category})
+                except Exception:
+                    continue
+    except Exception as e:
+        print(f"Error reading quotes.csv: {e}")
 
 df = pd.DataFrame(quotes)
 
 # -----------------------------
-# Expanded keyword mapping
+# Mood to Tags Mapping
 # -----------------------------
 MOOD_TO_TAGS = {
     "angry": ["anger", "frustration", "mistakes", "hate", "evil", "despair"],
@@ -48,7 +51,7 @@ MOOD_TO_TAGS = {
 }
 
 # -----------------------------
-# Normalize audio
+# Normalize audio to 16k mono
 # -----------------------------
 def ensure_16k_mono(path):
     wav, sr = torchaudio.load(path)
@@ -62,13 +65,13 @@ def ensure_16k_mono(path):
     return tmp.name
 
 # -----------------------------
-# Select quote by emotion
+# Get quote based on emotion
 # -----------------------------
 def get_quote_for_emotion(emotion_label):
     keywords = MOOD_TO_TAGS.get(emotion_label.lower(), ["life", "wisdom"])
     if df.empty:
         return {"text": "Could not load quotes.", "author": "", "tags": []}
-    
+
     filtered = df[df["category"].apply(lambda x: any(k.lower() in str(x).lower() for k in keywords))]
     if filtered.empty:
         row = random.choice(df[["quote", "author"]].values)
@@ -78,7 +81,14 @@ def get_quote_for_emotion(emotion_label):
     return {"text": row[0], "author": row[1], "tags": keywords}
 
 # -----------------------------
-# API Endpoint
+# Root Route (Health Check)
+# -----------------------------
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"message": "🎧 Emotion Quote API is running successfully!"})
+
+# -----------------------------
+# Main Emotion Inference Endpoint
 # -----------------------------
 @app.route("/infer/audio", methods=["POST"])
 def infer_audio():
@@ -94,7 +104,7 @@ def infer_audio():
     try:
         tmp_norm = ensure_16k_mono(tmp_in.name)
 
-        # ✅ Send to Gradio API
+        # Send audio to Gradio API
         with open(tmp_norm, "rb") as audio_file:
             files = {"audio": (filename, audio_file, "audio/wav")}
             response = requests.post(f"{GRADIO_API_URL}/audio", files=files)
@@ -122,7 +132,7 @@ def infer_audio():
                 pass
 
 # -----------------------------
-# Run Server
+# Run Server (Local)
 # -----------------------------
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
