@@ -15,7 +15,7 @@ app = Flask(__name__)
 # --------------------------------
 # Gradio API Endpoint (update as needed)
 # --------------------------------
-GRADIO_API_URL = "https://5efe1650c0a5918059.gradio.live"
+GRADIO_API_URL = "https://0134c995954b2a385f.gradio.live"
 
 # --------------------------------
 # Load quotes dataset
